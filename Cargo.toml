@@ -1,10 +1,13 @@
 [package]
-name = "arch-csh"
+name = "sigmaos-arch-csh"
 version = "0.1.0"
 edition = "2021"
-description = "SigmaOS SigmaOS-arch-csh component - Inspired by Arch Linux and Debian"
+description = "C shell command interpreter for SigmaOS"
 license = "MIT"
 repository = "https://github.com/AaryanSinghChauhan09/SigmaOS-arch-csh"
 
 [dependencies]
-thiserror = "2"
+
+[lib]
+name = "sigmaos_arch_csh"
+path = "src/lib.rs"

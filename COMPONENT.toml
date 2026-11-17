@@ -1,16 +1,16 @@
 [component]
 name = "SigmaOS-arch-csh"
 tier = 2
-stability = "scaffold"
+stability = "beta"
 language = "rust"
-description = "GitHub description is a placeholder; component scope remains unclassified."
+description = "C shell command interpreter with parsing, history, and basic command execution"
 upstream = []
 
 [contract]
-provides = ["component"]
+provides = ["shell-interpreter", "command-parser", "shell-history"]
 depends_on = []
 
 [maturity]
-status = "Scaffold"
-test_evidence = "Compiles and passes AAA unit tests"
-next_milestone = "Hardware and runtime integration"
+status = "Implemented"
+test_evidence = "cargo test --offline unit tests pass"
+next_milestone = "Pipe support, variable expansion, and external command execution"

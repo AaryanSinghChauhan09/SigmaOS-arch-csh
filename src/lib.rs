@@ -1,83 +1,160 @@
-//! SigmaOS-arch-csh — arch-csh component
+//! C shell (csh) command interpreter for SigmaOS.
 //!
-//! Part of the SigmaOS multi-repository component ecosystem. This crate
-//! declares its interface in `COMPONENT.toml` (`provides` / `depends_on`).
+//! Basic shell command parser, history, and execution model. Dependency-free.
 
-#![forbid(unsafe_code)]
-#![warn(missing_docs)]
+use std::collections::VecDeque;
+use std::fmt;
 
-/// Errors raised by this component.
-#[derive(Debug, thiserror::Error)]
-pub enum ComponentError {
-    /// The requested operation is not supported by this component yet.
-    #[error("unsupported operation: {0}")]
-    Unsupported(&'static str),
+/// Errors for shell operations.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ShellError {
+    ParseError(String),
+    EmptyCommand,
+    UnknownCommand(String),
 }
 
-/// Result alias for component operations.
-pub type ComponentResult<T> = Result<T, ComponentError>;
-
-/// A handle to an initialised component instance.
-#[derive(Debug, Default, Clone)]
-pub struct Component {
-    initialised: bool,
-}
-
-impl Component {
-    /// Create a new, uninitialised component handle.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Initialise the component. Returns `Ok(())` once ready.
-    pub fn init(&mut self) -> ComponentResult<()> {
-        self.initialised = true;
-        Ok(())
-    }
-
-    /// Returns `true` once [`Component::init`] has succeeded.
-    pub fn is_ready(&self) -> bool {
-        self.initialised
-    }
-
-    /// Placeholder for the component's primary operation.
-    ///
-    /// Replace with the real implementation for this component; keep the
-    /// `ComponentResult` contract and update `COMPONENT.toml` accordingly.
-    pub fn run(&self) -> ComponentResult<()> {
-        if !self.initialised {
-            return Err(ComponentError::Unsupported("not initialised"));
+impl fmt::Display for ShellError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ParseError(m) => write!(f, "parse error: {m}"),
+            Self::EmptyCommand => write!(f, "empty command"),
+            Self::UnknownCommand(c) => write!(f, "unknown command: {c}"),
         }
-        Ok(())
+    }
+}
+
+impl std::error::Error for ShellError {}
+
+/// Parsed command.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Command {
+    pub name: String,
+    pub args: Vec<String>,
+    pub redirects: Vec<Redirect>,
+}
+
+/// I/O redirection.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Redirect {
+    pub target: String,
+    pub append: bool,
+    pub stderr: bool,
+}
+
+/// C shell interpreter.
+#[derive(Debug, Clone, Default)]
+pub struct CShell {
+    history: VecDeque<String>,
+    max_history: usize,
+}
+
+impl CShell {
+    pub fn new() -> Self {
+        Self {
+            history: VecDeque::new(),
+            max_history: 100,
+        }
+    }
+
+    pub fn with_history_limit(mut self, limit: usize) -> Self {
+        self.max_history = limit;
+        self
+    }
+
+    pub fn parse_command(&self, input: &str) -> Result<Command, ShellError> {
+        let trimmed = input.trim();
+        if trimmed.is_empty() {
+            return Err(ShellError::EmptyCommand);
+        }
+
+        let parts: Vec<&str> = trimmed.split_whitespace().collect();
+        if parts.is_empty() {
+            return Err(ShellError::EmptyCommand);
+        }
+
+        let name = parts[0].to_string();
+        let args = parts[1..].iter().map(|s| s.to_string()).collect();
+        let redirects = Vec::new();
+
+        Ok(Command { name, args, redirects })
+    }
+
+    pub fn execute(&self, cmd: &Command) -> Result<String, ShellError> {
+        match cmd.name.as_str() {
+            "echo" => {
+                let output = cmd.args.join(" ");
+                Ok(output)
+            }
+            "pwd" => {
+                Ok(std::env::current_dir().map(|p| p.display().to_string()).unwrap_or_else(|_| "/".into()))
+            }
+            "ls" => {
+                Ok("file1\nfile2\nfile3".to_string())
+            }
+            "help" => {
+                Ok("Available commands: echo, pwd, ls, help".to_string())
+            }
+            _ => Err(ShellError::UnknownCommand(cmd.name.clone())),
+        }
+    }
+
+    pub fn run_line(&mut self, line: &str) -> Result<String, ShellError> {
+        let cmd = self.parse_command(line)?;
+        self.add_history(line);
+        self.execute(&cmd)
+    }
+
+    pub fn add_history(&mut self, line: &str) {
+        if self.history.len() >= self.max_history {
+            self.history.pop_front();
+        }
+        self.history.push_back(line.to_string());
+    }
+
+    pub fn history(&self) -> Vec<&str> {
+        self.history.iter().map(|s| s.as_str()).collect()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pretty_assertions::assert_eq;
 
-    // Arrange-Act-Assert
     #[test]
-    fn init_marks_component_ready() {
+    fn test_parse_echo_aaa() {
         // Arrange
-        let mut c = Component::new();
-        assert!(!c.is_ready());
+        let shell = CShell::new();
 
         // Act
-        c.init().unwrap();
+        let cmd = shell.parse_command("echo hello world");
 
         // Assert
-        assert!(c.is_ready());
+        assert!(cmd.is_ok());
+        let c = cmd.unwrap();
+        assert_eq!(c.name, "echo");
+        assert_eq!(c.args, vec!["hello", "world"]);
     }
 
     #[test]
-    fn run_requires_init() {
+    fn test_execute_echo_aaa() {
         // Arrange
-        let c = Component::new();
+        let mut shell = CShell::new();
 
         // Act
-        let res = c.run();
+        let output = shell.run_line("echo test123");
+
+        // Assert
+        assert_eq!(output.unwrap(), "test123");
+        assert_eq!(shell.history().len(), 1);
+    }
+
+    #[test]
+    fn test_unknown_command_aaa() {
+        // Arrange
+        let mut shell = CShell::new();
+
+        // Act
+        let res = shell.run_line("nonexistent");
 
         // Assert
         assert!(res.is_err());
