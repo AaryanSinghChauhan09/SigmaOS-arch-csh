@@ -1,4 +1,4 @@
-# SigmaOS-arch-csh
+# SigmaOS-csh
 
 GitHub description is a placeholder; component scope remains unclassified.
 

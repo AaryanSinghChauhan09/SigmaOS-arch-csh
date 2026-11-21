@@ -1,5 +1,5 @@
 [component]
-name = "SigmaOS-arch-csh"
+name = "SigmaOS-csh"
 tier = 2
 stability = "beta"
 language = "rust"
